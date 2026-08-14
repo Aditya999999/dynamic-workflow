@@ -1,0 +1,409 @@
+{
+  "version": "1.0.0",
+  "agents": [
+    {
+      "agent_id": "business-analyst",
+      "display_name": "Business Analyst Agent",
+      "contract_version": "1.0.0",
+      "purpose": "Requirements analysis, BRD generation, and user story elaboration",
+      "capabilities": [
+        "requirements_analysis",
+        "brd_generation",
+        "user_stories",
+        "synopsis",
+        "feedback_incorporation",
+        "jira_query",
+        "kb_query"
+      ],
+      "supported_task_types": [
+        "create_brd",
+        "create_user_stories",
+        "dynamic_workflow_ba_task",
+        "handle_ba_message",
+        "get_synopsis",
+        "edit_synopsis",
+        "jira_agent"
+      ],
+      "status": "active",
+      "contract_status": "verified",
+      "invocation_enabled": true,
+      "deployment_type": "http",
+      "authentication_scheme": "bearer_jwt",
+      "environment_bindings": {
+        "local": {
+          "base_url": "${BA_AGENT_BASE_URL}"
+        },
+        "office": {
+          "base_url": "${BA_AGENT_BASE_URL}"
+        }
+      },
+      "endpoints": {
+        "task": [
+          {
+            "name": "dynamic_workflow_ba_task",
+            "route": "/dynamic-workflow/ba-task",
+            "method": "POST",
+            "category": "task",
+            "request_schema": {
+              "type": "object",
+              "properties": {
+                "prompt": { "type": "string" },
+                "workspace_id": { "type": "string" },
+                "conversation_id": { "type": "string" },
+                "dry_run": { "type": "boolean" }
+              },
+              "required": ["prompt"]
+            },
+            "response_schema": {
+              "type": "object",
+              "properties": {
+                "success": { "type": "boolean" },
+                "data": { "type": "object" }
+              }
+            },
+            "timeout_seconds": 90,
+            "async_supported": false,
+            "auth_scheme": "bearer_jwt",
+            "enabled": true
+          },
+          {
+            "name": "create_user_stories",
+            "route": "/create-user-stories",
+            "method": "POST",
+            "category": "task",
+            "request_schema": {
+              "type": "object",
+              "properties": {
+                "user_message": { "type": "string" },
+                "workspace_id": { "type": "string" },
+                "conversation_id": { "type": "string" }
+              },
+              "required": ["user_message"]
+            },
+            "response_schema": {
+              "type": "object"
+            },
+            "timeout_seconds": 60,
+            "async_supported": false,
+            "auth_scheme": "bearer_jwt",
+            "enabled": true
+          },
+          {
+            "name": "handle_ba_message",
+            "route": "/handle-ba-message",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          }
+        ],
+        "lifecycle": [
+          { "name": "health_check", "route": "/health", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "create_session", "route": "/create-session", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "store_conversation", "route": "/store-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "get_conversation", "route": "/get-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "delete_conversation", "route": "/delete-conversation", "method": "POST", "category": "lifecycle", "enabled": true }
+        ],
+        "admin": [
+          { "name": "get_config", "route": "/get-config", "method": "GET", "category": "admin", "enabled": true },
+          { "name": "update_config", "route": "/update-config", "method": "POST", "category": "admin", "enabled": true },
+          { "name": "test_jira_connection", "route": "/test-jira-connection", "method": "POST", "category": "admin", "enabled": true }
+        ]
+      }
+    },
+    {
+      "agent_id": "architect",
+      "display_name": "Architect Agent",
+      "contract_version": "1.0.0",
+      "purpose": "System architecture design, C4 diagrams, component specification, and data flow modeling",
+      "capabilities": [
+        "system_design",
+        "architecture_generation",
+        "c4_diagrams",
+        "nld_design",
+        "api_design",
+        "cloud_infrastructure"
+      ],
+      "supported_task_types": [
+        "generate_architecture",
+        "send_message",
+        "update_design_nld",
+        "render_mermaid",
+        "get_synopsis",
+        "edit_synopsis"
+      ],
+      "status": "active",
+      "contract_status": "verified",
+      "invocation_enabled": true,
+      "deployment_type": "http",
+      "authentication_scheme": "bearer_jwt",
+      "environment_bindings": {
+        "local": {
+          "base_url": "${ARCHITECT_AGENT_BASE_URL}"
+        },
+        "office": {
+          "base_url": "${ARCHITECT_AGENT_BASE_URL}"
+        }
+      },
+      "endpoints": {
+        "task": [
+          {
+            "name": "send_message",
+            "route": "/send-message",
+            "method": "POST",
+            "category": "task",
+            "request_schema": {
+              "type": "object",
+              "properties": {
+                "workspace_id": { "type": "string" },
+                "conversation_id": { "type": "string" },
+                "user_message": { "type": "string" },
+                "job_id": { "type": "string" }
+              },
+              "required": ["user_message"]
+            },
+            "response_schema": {
+              "type": "object"
+            },
+            "timeout_seconds": 90,
+            "async_supported": true,
+            "status_route": "/send-message-status",
+            "auth_scheme": "bearer_jwt",
+            "enabled": true
+          },
+          {
+            "name": "update_design_nld",
+            "route": "/update-design-nld",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          },
+          {
+            "name": "render_mermaid",
+            "route": "/render-mermaid",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 30,
+            "enabled": true
+          }
+        ],
+        "lifecycle": [
+          { "name": "health", "route": "/health", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "create_session", "route": "/create-session", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "store_conversation", "route": "/store-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "get_conversation", "route": "/get-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "send_message_status", "route": "/send-message-status", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "delete_conversation", "route": "/delete-conversation", "method": "POST", "category": "lifecycle", "enabled": true }
+        ],
+        "admin": [
+          { "name": "upload_skill_blob", "route": "/upload-skill-blob", "method": "POST", "category": "admin", "enabled": true },
+          { "name": "download_skill_blob", "route": "/download-skill-blob", "method": "POST", "category": "admin", "enabled": true },
+          { "name": "update_skill", "route": "/update-skill", "method": "POST", "category": "admin", "enabled": true }
+        ]
+      }
+    },
+    {
+      "agent_id": "developer",
+      "display_name": "Developer Agent",
+      "contract_version": "1.0.0",
+      "purpose": "Code generation, project scaffolding, unit testing, and technical implementation",
+      "capabilities": [
+        "code_generation",
+        "scaffolding",
+        "unit_tests",
+        "refactoring",
+        "backend_development",
+        "frontend_development"
+      ],
+      "supported_task_types": [
+        "generate_code",
+        "handle_dev_message",
+        "async_handle_dev_message",
+        "get_synopsis",
+        "edit_synopsis"
+      ],
+      "status": "active",
+      "contract_status": "verified",
+      "invocation_enabled": true,
+      "deployment_type": "http",
+      "authentication_scheme": "bearer_jwt",
+      "environment_bindings": {
+        "local": {
+          "base_url": "${DEVELOPER_AGENT_BASE_URL}"
+        },
+        "office": {
+          "base_url": "${DEVELOPER_AGENT_BASE_URL}"
+        }
+      },
+      "endpoints": {
+        "task": [
+          {
+            "name": "handle_dev_message",
+            "route": "/handle-dev-message",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 90,
+            "enabled": true
+          },
+          {
+            "name": "async_handle_dev_message",
+            "route": "/async/handle-dev-message",
+            "method": "POST",
+            "category": "task",
+            "async_supported": true,
+            "status_route": "/jobs/{job_id}",
+            "timeout_seconds": 120,
+            "enabled": true
+          }
+        ],
+        "lifecycle": [
+          { "name": "health", "route": "/health", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "create_session", "route": "/create-session", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "store_conversation", "route": "/store-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "get_conversation", "route": "/get-conversation", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "jobs_status", "route": "/jobs/{job_id}", "method": "GET", "category": "lifecycle", "enabled": true }
+        ],
+        "admin": [
+          { "name": "upload_file", "route": "/upload-file", "method": "POST", "category": "admin", "enabled": true }
+        ]
+      }
+    },
+    {
+      "agent_id": "product-owner",
+      "display_name": "Product Owner Agent",
+      "contract_version": "1.0.0",
+      "purpose": "Backlog prioritization, user story acceptance criteria, sprint planning, and MVP scope alignment",
+      "capabilities": [
+        "backlog_prioritization",
+        "acceptance_criteria",
+        "sprint_planning",
+        "roadmap_planning",
+        "epic_breakdown"
+      ],
+      "supported_task_types": [
+        "sprint_planning",
+        "prioritize_backlog",
+        "review_acceptance_criteria"
+      ],
+      "status": "active",
+      "contract_status": "verified",
+      "invocation_enabled": true,
+      "deployment_type": "http",
+      "authentication_scheme": "bearer_jwt",
+      "environment_bindings": {
+        "local": {
+          "base_url": "${PO_AGENT_BASE_URL}"
+        },
+        "office": {
+          "base_url": "${PO_AGENT_BASE_URL}"
+        }
+      },
+      "endpoints": {
+        "task": [
+          {
+            "name": "sprint_planning",
+            "route": "/sprint-planning",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          },
+          {
+            "name": "prioritize_backlog",
+            "route": "/prioritize-backlog",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          },
+          {
+            "name": "review_acceptance_criteria",
+            "route": "/review-acceptance-criteria",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          }
+        ],
+        "lifecycle": [
+          { "name": "health", "route": "/health", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "create_session", "route": "/create-session", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "store_conversation", "route": "/store-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "get_conversation", "route": "/get-conversation", "method": "POST", "category": "lifecycle", "enabled": true }
+        ],
+        "admin": [
+          { "name": "get_config", "route": "/get-config", "method": "GET", "category": "admin", "enabled": true }
+        ]
+      }
+    },
+    {
+      "agent_id": "qe",
+      "display_name": "Quality Engineer Agent",
+      "contract_version": "1.0.0",
+      "purpose": "Test strategy formulation, test case generation, test automation suites, and QA verification",
+      "capabilities": [
+        "test_strategy",
+        "test_cases",
+        "automation_plan",
+        "security_testing",
+        "performance_testing"
+      ],
+      "supported_task_types": [
+        "generate_test_strategy",
+        "generate_test_cases",
+        "generate_qa_report"
+      ],
+      "status": "active",
+      "contract_status": "verified",
+      "invocation_enabled": true,
+      "deployment_type": "http",
+      "authentication_scheme": "bearer_jwt",
+      "environment_bindings": {
+        "local": {
+          "base_url": "${QE_AGENT_BASE_URL}"
+        },
+        "office": {
+          "base_url": "${QE_AGENT_BASE_URL}"
+        }
+      },
+      "endpoints": {
+        "task": [
+          {
+            "name": "generate_test_strategy",
+            "route": "/generate-test-strategy",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          },
+          {
+            "name": "generate_test_cases",
+            "route": "/generate-test-cases",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          },
+          {
+            "name": "generate_qa_report",
+            "route": "/generate-qa-report",
+            "method": "POST",
+            "category": "task",
+            "timeout_seconds": 60,
+            "enabled": true
+          }
+        ],
+        "lifecycle": [
+          { "name": "health", "route": "/health", "method": "GET", "category": "lifecycle", "enabled": true },
+          { "name": "create_session", "route": "/create-session", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "store_conversation", "route": "/store-conversation", "method": "POST", "category": "lifecycle", "enabled": true },
+          { "name": "get_conversation", "route": "/get-conversation", "method": "POST", "category": "lifecycle", "enabled": true }
+        ],
+        "admin": [
+          { "name": "get_config", "route": "/get-config", "method": "GET", "category": "admin", "enabled": true }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynamic-workflow-orchestrator"
+version = "5.0.0"
+description = "Greenfield + Office-Repository-Compatible Dynamic Multi-Agent Workflow Orchestrator using Deep Agents"
+authors = [{ name = "DeepMind & Coforge AI Team" }]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "pydantic>=2.8.0",
+    "pydantic-settings>=2.4.0",
+    "motor>=3.5.0",
+    "pymongo>=4.8.0",
+    "httpx>=0.27.0",
+    "python-jose[cryptography]>=3.3.0",
+    "python-dotenv>=1.0.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

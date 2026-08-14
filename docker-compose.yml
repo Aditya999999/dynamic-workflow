@@ -1,0 +1,30 @@
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: dwf-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: dwf_orchestrator
+    volumes:
+      - mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dwf-orchestrator-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=local
+      - MONGODB_URI=mongodb://mongo:27017
+      - MONGODB_DATABASE=dwf_orchestrator
+      - AGENT_MODE=mock
+    depends_on:
+      - mongo
+
+volumes:
+  mongo_data:
