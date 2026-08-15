@@ -10,23 +10,11 @@ class WorkflowGraphBuilder:
         xy_nodes: list[XYFlowNode] = []
         xy_edges: list[XYFlowEdge] = []
 
-        # Simple hierarchical layout
-        level_map: dict[str, int] = {}
-        for node in state.nodes:
-            if not node.depends_on:
-                level_map[node.id] = 0
-            else:
-                max_dep_lvl = max([level_map.get(dep, 0) for dep in node.depends_on], default=0)
-                level_map[node.id] = max_dep_lvl + 1
-
-        level_counts: dict[int, int] = {}
-        for node in state.nodes:
-            lvl = level_map.get(node.id, 0)
-            idx_in_lvl = level_counts.get(lvl, 0)
-            level_counts[lvl] = idx_in_lvl + 1
-
-            pos_x = node.position_x if node.position_x != 0.0 else (lvl * 280.0) + 50.0
-            pos_y = node.position_y if node.position_y != 0.0 else (idx_in_lvl * 140.0) + 80.0
+        # Calculate clean horizontal layout for nodes
+        for idx, node in enumerate(state.nodes):
+            # Calculate position: clean horizontal sequence with gentle vertical offsets for revisions
+            pos_x = node.position_x if node.position_x != 0.0 else 50.0 + (idx * 300.0)
+            pos_y = node.position_y if node.position_y != 0.0 else 120.0
 
             artifact_id = node.artifact_refs[0] if node.artifact_refs else None
 

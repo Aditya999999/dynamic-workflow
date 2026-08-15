@@ -2,7 +2,6 @@ import uuid
 import re
 import json
 import logging
-from abc import ABC, abstractmethod
 from typing import Any, Protocol
 from enum import IntEnum
 from pydantic import BaseModel, Field
@@ -92,11 +91,8 @@ class DeepAgentQuerySlicer:
         if not cleaned:
             return []
 
-        # Split on commas, semicolons, numbered points, or transitional phrases ('and then', 'then', 'and')
         pattern = r"(?:\r?\n\s*\d+[\.\)]\s*|\r?\n\s*[-*]\s*|\s*;\s*|\s*,\s*and\s+|\s*,\s*then\s+|\s+and\s+then\s+|\s*,\s*|\s+then\s+)"
         parts = [p.strip() for p in re.split(pattern, cleaned, flags=re.IGNORECASE) if p.strip()]
-
-        # Filter out trivial fragments (< 3 characters)
         meaningful_parts = [p for p in parts if len(p) >= 3]
 
         if not meaningful_parts:
@@ -122,10 +118,11 @@ class DeepAgentIntentClassifier:
         if self._is_llm_configured():
             llm_result = self._classify_with_llm(slices, available_agents, original_query)
             if llm_result:
-                return llm_result
+                return self._consolidate_intents_per_agent(llm_result)
 
         # Fallback to capability matching against agents.json
-        return self._classify_with_capability_matcher(slices, available_agents, original_query)
+        matched_intents = self._classify_with_capability_matcher(slices, available_agents, original_query)
+        return self._consolidate_intents_per_agent(matched_intents)
 
     def _is_llm_configured(self) -> bool:
         return bool(
@@ -134,6 +131,18 @@ class DeepAgentIntentClassifier:
             self.settings.azure_openai_deployment_name and
             self.settings.deep_agent_model_provider == "azure"
         )
+
+    def _consolidate_intents_per_agent(self, intents: list[ClassifiedTaskIntent]) -> list[ClassifiedTaskIntent]:
+        """Consolidates multiple intents per agent into a single canonical stage to prevent duplicate nodes."""
+        consolidated: dict[str, ClassifiedTaskIntent] = {}
+        for item in intents:
+            if item.agent_id not in consolidated:
+                consolidated[item.agent_id] = item
+            else:
+                # Append slice context into the existing agent task
+                existing = consolidated[item.agent_id]
+                existing.task_prompt = f"{existing.task_prompt}; {item.task_prompt}"
+        return list(consolidated.values())
 
     def _classify_with_llm(
         self,
@@ -161,12 +170,12 @@ class DeepAgentIntentClassifier:
             ]
 
             prompt = (
-                f"You are the Deep Agent Planning Engine. Analyze this user workflow query and requirement slices:\n"
+                f"You are the Deep Agent Planning Engine. Analyze this user workflow query:\n"
                 f"Query: {original_query}\n"
                 f"Slices: {[s.text for s in slices]}\n\n"
-                f"Available Agents & Capabilities:\n{json.dumps(agent_manifest, indent=2)}\n\n"
-                f"Map the request to an ordered SDLC plan. Return a JSON object with a list of 'tasks', each containing: "
-                f"agent_id, task_type, capability_matched, task_prompt, and confidence."
+                f"Available Agents & Capabilities in agents.json:\n{json.dumps(agent_manifest, indent=2)}\n\n"
+                f"Generate a single consolidated task for each relevant agent in the SDLC pipeline. "
+                f"Return a JSON object with a list of 'tasks', each containing: agent_id, task_type, capability_matched, task_prompt, and confidence."
             )
 
             headers = {
@@ -221,7 +230,6 @@ class DeepAgentIntentClassifier:
         """Matches slices and capabilities dynamically against agents.json."""
         intents_by_agent: dict[str, ClassifiedTaskIntent] = {}
 
-        # Keywords mapped to registered agent capabilities in agents.json
         capability_keywords = {
             "business-analyst": ["brd", "requirement", "requirements", "business", "stories", "user story", "spec", "synopsis", "analyst"],
             "architect": ["architect", "architecture", "design", "c4", "diagram", "infra", "infrastructure", "api design", "nld", "component"],
@@ -239,7 +247,6 @@ class DeepAgentIntentClassifier:
             agent_id = agent.agent_id
             keywords = capability_keywords.get(agent_id, [agent_id])
             
-            # Check if any slice matches or full query matches this agent's capabilities
             matched_slice_texts = []
             for s in slices:
                 s_lower = s.text.lower()
@@ -247,12 +254,9 @@ class DeepAgentIntentClassifier:
                     matched_slice_texts.append(s.text)
 
             is_full_query_match = any(kw in full_text for kw in keywords)
-            
-            # If query mentions SDLC / end-to-end / platform, include standard core pipeline
             is_broad_request = any(term in full_text for term in ["platform", "system", "app", "application", "sdlc", "end to end", "pipeline", "workflow"])
             
             if matched_slice_texts or is_full_query_match or is_broad_request:
-                # Determine task prompt and task type
                 task_prompt = " ".join(matched_slice_texts) if matched_slice_texts else original_query
                 task_type = self._pick_best_task_type(agent, task_prompt)
                 capability = agent.capabilities[0] if agent.capabilities else "general_task"
@@ -330,7 +334,7 @@ class SDLCSequenceEngine:
     ) -> tuple[list[WorkflowNode], list[WorkflowEdge]]:
         initial_context = initial_context or {}
 
-        # 1. Sort intents by SDLCPhase to guarantee sequence proofing
+        # 1. Sort intents strictly by SDLCPhase to guarantee sequence proofing
         sorted_intents = sorted(intents, key=lambda item: int(item.phase))
 
         nodes: list[WorkflowNode] = []
@@ -354,8 +358,8 @@ class SDLCSequenceEngine:
                 plan_version=1,
                 depends_on=[prev_node_id] if prev_node_id else [],
                 hitl_required=False,
-                position_x=50.0 + ((idx - 1) * 280.0),
-                position_y=100.0
+                position_x=50.0 + ((idx - 1) * 300.0),
+                position_y=120.0
             )
             nodes.append(node)
 
@@ -424,7 +428,7 @@ class WorkflowPlanner:
         # 2. Intent Classification & Capability Matching: Match slices against agents.json
         available_agents = self.registry.list_agents()
         intents = self.classifier.classify_intents(slices, available_agents, query)
-        logger.info(f"Classified {len(intents)} agent task intents matching agents.json capabilities")
+        logger.info(f"Classified {len(intents)} consolidated agent task intents matching agents.json capabilities")
 
         # 3. SDLC Sequence Proofing: Construct topological DAG
         nodes, edges = self.sequence_engine.build_sdlc_graph(intents, query, initial_context)
