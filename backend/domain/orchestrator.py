@@ -189,8 +189,15 @@ class WorkflowOrchestrator:
             # Policy guardrail validation
             self.policy.validate_node_invocation(state, node)
 
-            # Context injection from prior artifacts
-            context = {"workflow_id": state.workflow_id, "query": state.query, "artifacts": state.artifacts}
+            # Context injection from state and prior artifacts
+            context = {
+                "workflow_id": state.workflow_id,
+                "workspace_id": state.workspace_id or "default_workspace",
+                "conversation_id": state.workflow_id,
+                "user_id": state.user_id or "default_user",
+                "query": state.query,
+                "artifacts": state.artifacts
+            }
 
             # Execute via Deep Agent
             response = await self.deep_agent.execute_agent_task(

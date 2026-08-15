@@ -54,6 +54,18 @@ class AgentClient:
         base_url = self.registry.get_base_url(agent_id, env=self.settings.app_env)
         url = f"{base_url}{endpoint.route}"
 
+        from domain.schema_adapter import AgentPayloadSchemaAdapter
+
+        # Adapt and validate payload against endpoint request_schema
+        adapted_payload = AgentPayloadSchemaAdapter.adapt_payload(
+            endpoint=endpoint,
+            input_data=input_data,
+            context=context,
+            workflow_id=workflow_id,
+            node_id=node_id,
+            agent_id=agent_id
+        )
+
         headers = {
             "Content-Type": "application/json",
             "X-Correlation-ID": correlation_id,
@@ -72,11 +84,11 @@ class AgentClient:
         async with httpx.AsyncClient(timeout=endpoint.timeout_seconds) as client:
             for attempt in range(1, max_retries + 1):
                 try:
-                    logger.info(f"Calling live agent {agent_id} at {url} (Attempt {attempt}/{max_retries})")
+                    logger.info(f"Calling live agent {agent_id} at {url} (Attempt {attempt}/{max_retries}) with payload: {list(adapted_payload.keys())}")
                     if endpoint.method.upper() == "GET":
-                        response = await client.get(url, params=input_data, headers=headers)
+                        response = await client.get(url, params=adapted_payload, headers=headers)
                     else:
-                        response = await client.post(url, json=input_data, headers=headers)
+                        response = await client.post(url, json=adapted_payload, headers=headers)
 
                     if response.status_code >= 500 and attempt < max_retries:
                         await asyncio.sleep(backoff)

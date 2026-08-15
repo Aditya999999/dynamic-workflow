@@ -7,6 +7,7 @@ class AgentEndpoint(BaseModel):
     route: str
     method: Literal["GET", "POST", "PUT", "DELETE", "PATCH"] = "POST"
     category: Literal["task", "lifecycle", "admin"] = "task"
+    is_primary_entrypoint: bool = False
     request_schema: dict[str, Any] = Field(default_factory=dict)
     response_schema: dict[str, Any] = Field(default_factory=dict)
     timeout_seconds: int = 60
@@ -14,6 +15,9 @@ class AgentEndpoint(BaseModel):
     status_route: str | None = None
     auth_scheme: str = "bearer_jwt"
     enabled: bool = True
+
+    class Config:
+        extra = "ignore"
 
 
 class AgentEndpoints(BaseModel):
