@@ -43,12 +43,39 @@ class ArtifactStore:
         )
 
         if self.mongo.is_connected and self.mongo.db is not None:
-            # Store in Mongo collection and GridFS
-            await self.mongo.db.dwf_artifacts.insert_one({
-                "_id": artifact_id,
-                "metadata": metadata.model_dump(mode="json"),
-                "content": content
-            })
+            # Store in internal orchestrator collection
+            await self.mongo.db.dwf_artifacts.replace_one(
+                {"_id": artifact_id},
+                {
+                    "_id": artifact_id,
+                    "metadata": metadata.model_dump(mode="json"),
+                    "content": content
+                },
+                upsert=True
+            )
+            # Sync to canonical workflow_artifacts collection queried by live Azure agents
+            await self.mongo.db.workflow_artifacts.replace_one(
+                {"_id": artifact_id},
+                {
+                    "_id": artifact_id,
+                    "artifact_id": artifact_id,
+                    "job_id": workflow_id,
+                    "workflow_job_id": workflow_id,
+                    "workflow_id": workflow_id,
+                    "node_id": node_id,
+                    "agent_id": agent_id,
+                    "name": name,
+                    "artifact_name": name,
+                    "type": artifact_type,
+                    "artifact_type": artifact_type,
+                    "content": content,
+                    "artifact_content": content,
+                    "summary": metadata.summary,
+                    "metadata": metadata.model_dump(mode="json"),
+                    "created_at": datetime.utcnow()
+                },
+                upsert=True
+            )
         else:
             self._memory_artifacts[artifact_id] = {
                 "metadata": metadata.model_dump(mode="json"),

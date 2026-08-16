@@ -22,6 +22,22 @@ class WorkflowRepository:
                 doc,
                 upsert=True
             )
+            # Sync to canonical workflow_jobs collection queried by live Azure agents
+            await self.mongo.db.workflow_jobs.replace_one(
+                {"_id": state.workflow_id},
+                {
+                    "_id": state.workflow_id,
+                    "job_id": state.workflow_id,
+                    "workflow_job_id": state.workflow_id,
+                    "workflow_id": state.workflow_id,
+                    "status": state.status,
+                    "query": state.query,
+                    "artifacts": [art.model_dump(mode="json") for art in state.artifacts] if hasattr(state, "artifacts") else [],
+                    "created_at": state.created_at,
+                    "updated_at": datetime.utcnow()
+                },
+                upsert=True
+            )
         else:
             self._memory_store[state.workflow_id] = doc
 

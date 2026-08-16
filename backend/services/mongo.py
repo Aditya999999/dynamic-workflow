@@ -45,6 +45,8 @@ class MongoDBManager:
             await self.db.dwf_events.create_index([("workflow_id", 1), ("sequence_number", 1)], unique=True)
             await self.db.dwf_artifacts.create_index("artifact_id", unique=True)
             await self.db.dwf_idempotency.create_index("key", unique=True)
+            await self.db.workflow_artifacts.create_index([("job_id", 1), ("artifact_name", 1)])
+            await self.db.workflow_jobs.create_index("job_id", unique=True)
         except Exception as e:
             logger.warning(f"Index creation notice: {e}")
 
