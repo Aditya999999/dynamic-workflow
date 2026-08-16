@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 class AgentPayloadSchemaAdapter:
     """
     Adapts and validates input payloads against the agent's request_schema from agents.json.
-    Automatically populates required fields (conversation_id, workspace_id, user_message, language, etc.)
-    from runtime context and previous artifacts, preventing HTTP 400/422 validation errors.
+    Automatically populates required fields (conversation_id, workspace_id, user_message, language, agent_feed, etc.)
+    from runtime context and previous artifacts, ensuring smooth artifact & context chaining between agents.
     """
 
     @classmethod
@@ -86,15 +86,21 @@ class AgentPayloadSchemaAdapter:
                 prop_type = properties.get("agent_id", {}).get("type", "string")
                 adapted["agent_id"] = 1 if prop_type == "integer" else (agent_id or "1")
 
+        if "job_id" in properties or "job_id" in required_fields:
+            if "job_id" not in adapted:
+                adapted["job_id"] = node_id or workflow_id
+
         if "workflow_job_id" in properties or "workflow_job_id" in required_fields:
             if "workflow_job_id" not in adapted:
                 adapted["workflow_job_id"] = node_id or workflow_id
 
+        # 4. Smart agent_feed construction from previous artifacts & dependencies
         if "agent_feed" in properties or "agent_feed" in required_fields:
-            if "agent_feed" not in adapted:
-                adapted["agent_feed"] = []
+            feed_items = cls._build_agent_feed(agent_id, node_id, context, adapted.get("agent_feed"))
+            adapted["agent_feed"] = feed_items
+            logger.info(f"Populated agent_feed for {agent_id} ({node_id}): {feed_items}")
 
-        # 4. Check for any remaining required fields in the schema and provide safe, non-empty defaults
+        # 5. Check for any remaining required fields in the schema and provide safe, non-empty defaults
         for req_field in required_fields:
             if req_field not in adapted or adapted[req_field] is None:
                 prop_info = properties.get(req_field, {})
@@ -105,7 +111,6 @@ class AgentPayloadSchemaAdapter:
                     prop_type = next((t for t in prop_type if t != "null"), "string")
 
                 if prop_type == "string":
-                    # Ensure minimum length requirements are satisfied (never pass empty string if minLength >= 1)
                     val = context.get(req_field, "")
                     if min_len >= 1 and not val:
                         val = raw_message_text or f"default_{req_field}"
@@ -129,11 +134,60 @@ class AgentPayloadSchemaAdapter:
         return adapted
 
     @classmethod
+    def _build_agent_feed(
+        cls,
+        agent_id: str | None,
+        node_id: str | None,
+        context: dict[str, Any],
+        existing_feed: list[str] | None
+    ) -> list[str]:
+        """Constructs a comprehensive feed list referencing all prior artifacts, artifact names, and upstream job IDs."""
+        feed: set[str] = set(existing_feed or [])
+
+        # Include prior artifact IDs and artifact names
+        artifacts = context.get("artifacts", [])
+        for art in artifacts:
+            if hasattr(art, "artifact_id") and art.artifact_id:
+                feed.add(str(art.artifact_id))
+            elif isinstance(art, dict) and art.get("artifact_id"):
+                feed.add(str(art.get("artifact_id")))
+
+            if hasattr(art, "name") and art.name:
+                feed.add(str(art.name))
+                name_clean = str(art.name).replace(".md", "").replace(".json", "")
+                feed.add(name_clean)
+            elif isinstance(art, dict) and art.get("name"):
+                feed.add(str(art.get("name")))
+                name_clean = str(art.get("name")).replace(".md", "").replace(".json", "")
+                feed.add(name_clean)
+
+        # Include upstream dependency node IDs
+        depends_on = context.get("depends_on", [])
+        for dep in depends_on:
+            if dep:
+                feed.add(str(dep))
+
+        # Default canonical feed tags based on agent role
+        if agent_id == "architect":
+            feed.update(["brd", "BRD", "BRD_Document.md", "requirements", "business-analyst"])
+        elif agent_id == "developer":
+            feed.update(["architecture", "Architecture_Design.md", "brd", "BRD_Document.md", "design", "architect", "business-analyst"])
+        elif agent_id == "product-owner":
+            feed.update(["brd", "BRD_Document.md", "architecture", "Architecture_Design.md", "business-analyst"])
+        elif agent_id == "qe":
+            feed.update(["brd", "architecture", "developer", "code", "BRD_Document.md", "Architecture_Design.md"])
+
+        # Ensure feed is non-empty
+        if not feed:
+            feed.add("workflow_start")
+
+        return list(feed)
+
+    @classmethod
     def _extract_language_from_context(cls, text: str, context: dict[str, Any]) -> str | None:
         """Searches prompt, query, and previous artifact summaries for programming language mentions."""
         combined = f"{text} {context.get('query', '')}".lower()
         
-        # Check artifact summaries if available
         artifacts = context.get("artifacts", [])
         for art in artifacts:
             if hasattr(art, "summary") and art.summary:
@@ -146,7 +200,6 @@ class AgentPayloadSchemaAdapter:
             "typescript": "TypeScript",
             "javascript": "JavaScript",
             "node": "Node.js",
-            "golang": "Go",
             "golang": "Go",
             "java": "Java",
             "c#": "C#",

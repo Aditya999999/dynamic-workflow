@@ -189,13 +189,15 @@ class WorkflowOrchestrator:
             # Policy guardrail validation
             self.policy.validate_node_invocation(state, node)
 
-            # Context injection from state and prior artifacts
+            # Context injection from state, dependencies, and prior artifacts
             context = {
                 "workflow_id": state.workflow_id,
                 "workspace_id": state.workspace_id or "default_workspace",
                 "conversation_id": state.workflow_id,
                 "user_id": state.user_id or "default_user",
                 "query": state.query,
+                "node_id": node.id,
+                "depends_on": node.depends_on,
                 "artifacts": state.artifacts
             }
 
