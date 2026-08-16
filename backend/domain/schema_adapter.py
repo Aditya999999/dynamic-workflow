@@ -1,3 +1,4 @@
+import re
 import logging
 from typing import Any
 from models.agents import AgentEndpoint
@@ -8,8 +9,8 @@ logger = logging.getLogger(__name__)
 class AgentPayloadSchemaAdapter:
     """
     Adapts and validates input payloads against the agent's request_schema from agents.json.
-    Automatically populates required fields (conversation_id, workspace_id, user_message, etc.)
-    from runtime context, preventing HTTP 400/422 validation errors.
+    Automatically populates required fields (conversation_id, workspace_id, user_message, language, etc.)
+    from runtime context and previous artifacts, preventing HTTP 400/422 validation errors.
     """
 
     @classmethod
@@ -73,6 +74,13 @@ class AgentPayloadSchemaAdapter:
         if "requirements" in properties or "requirements" in required_fields:
             adapted["requirements"] = raw_message_text
 
+        # 3. Smart Language resolution for Developer and Code Generation endpoints
+        if "language" in properties or "language" in required_fields:
+            if not adapted.get("language"):
+                extracted_lang = cls._extract_language_from_context(raw_message_text, context)
+                adapted["language"] = extracted_lang or "Python"
+                logger.info(f"Resolved programming language '{adapted['language']}' for endpoint '{endpoint.name}'")
+
         if "agent_id" in properties or "agent_id" in required_fields:
             if "agent_id" not in adapted or adapted["agent_id"] is None:
                 prop_type = properties.get("agent_id", {}).get("type", "string")
@@ -86,17 +94,22 @@ class AgentPayloadSchemaAdapter:
             if "agent_feed" not in adapted:
                 adapted["agent_feed"] = []
 
-        # 3. Check for any remaining required fields in the schema and provide safe defaults
+        # 4. Check for any remaining required fields in the schema and provide safe, non-empty defaults
         for req_field in required_fields:
             if req_field not in adapted or adapted[req_field] is None:
                 prop_info = properties.get(req_field, {})
                 prop_type = prop_info.get("type", "string")
+                min_len = prop_info.get("minLength", 0)
 
                 if isinstance(prop_type, list):
                     prop_type = next((t for t in prop_type if t != "null"), "string")
 
                 if prop_type == "string":
-                    adapted[req_field] = context.get(req_field, "")
+                    # Ensure minimum length requirements are satisfied (never pass empty string if minLength >= 1)
+                    val = context.get(req_field, "")
+                    if min_len >= 1 and not val:
+                        val = raw_message_text or f"default_{req_field}"
+                    adapted[req_field] = val
                 elif prop_type == "array":
                     adapted[req_field] = []
                 elif prop_type == "object":
@@ -114,3 +127,41 @@ class AgentPayloadSchemaAdapter:
             f"Adapted payload for agent='{agent_id}', endpoint='{endpoint.name}': keys={list(adapted.keys())}"
         )
         return adapted
+
+    @classmethod
+    def _extract_language_from_context(cls, text: str, context: dict[str, Any]) -> str | None:
+        """Searches prompt, query, and previous artifact summaries for programming language mentions."""
+        combined = f"{text} {context.get('query', '')}".lower()
+        
+        # Check artifact summaries if available
+        artifacts = context.get("artifacts", [])
+        for art in artifacts:
+            if hasattr(art, "summary") and art.summary:
+                combined += f" {art.summary.lower()}"
+            elif isinstance(art, dict) and art.get("summary"):
+                combined += f" {art.get('summary', '').lower()}"
+
+        language_map = {
+            "python": "Python",
+            "typescript": "TypeScript",
+            "javascript": "JavaScript",
+            "node": "Node.js",
+            "golang": "Go",
+            "golang": "Go",
+            "java": "Java",
+            "c#": "C#",
+            "csharp": "C#",
+            ".net": "C#",
+            "rust": "Rust",
+            "cpp": "C++",
+            "c++": "C++",
+            "php": "PHP",
+            "ruby": "Ruby"
+        }
+
+        for keyword, lang_name in language_map.items():
+            pattern = rf"\b{re.escape(keyword)}\b"
+            if re.search(pattern, combined):
+                return lang_name
+
+        return None
