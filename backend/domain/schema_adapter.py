@@ -89,13 +89,8 @@ class AgentPayloadSchemaAdapter:
         # In multi-agent DAG pipelines, workflow_job_id and job_id must reference the shared workflow_id
         # (or resolved conversation_id) so downstream agents can locate artifacts created by upstream jobs in shared storage.
         shared_workflow_job_id = workflow_id or resolved_conversation_id or node_id
-        if "job_id" in properties or "job_id" in required_fields or "job_id" in adapted:
-            if not adapted.get("job_id") or adapted.get("job_id") == node_id:
-                adapted["job_id"] = shared_workflow_job_id
-
-        if "workflow_job_id" in properties or "workflow_job_id" in required_fields or "workflow_job_id" in adapted:
-            if not adapted.get("workflow_job_id") or adapted.get("workflow_job_id") == node_id:
-                adapted["workflow_job_id"] = shared_workflow_job_id
+        adapted["job_id"] = adapted.get("job_id") if (adapted.get("job_id") and adapted.get("job_id") != node_id) else shared_workflow_job_id
+        adapted["workflow_job_id"] = adapted.get("workflow_job_id") if (adapted.get("workflow_job_id") and adapted.get("workflow_job_id") != node_id) else shared_workflow_job_id
 
         # 4. Smart agent_feed construction from previous artifacts & dependencies
         if "agent_feed" in properties or "agent_feed" in required_fields:

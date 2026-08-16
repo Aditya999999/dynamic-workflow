@@ -62,6 +62,7 @@ class ArtifactStore:
                     "job_id": workflow_id,
                     "workflow_job_id": workflow_id,
                     "workflow_id": workflow_id,
+                    "conversation_id": workflow_id,
                     "node_id": node_id,
                     "agent_id": agent_id,
                     "name": name,
@@ -70,6 +71,7 @@ class ArtifactStore:
                     "artifact_type": artifact_type,
                     "content": content,
                     "artifact_content": content,
+                    "data": content,
                     "summary": metadata.summary,
                     "metadata": metadata.model_dump(mode="json"),
                     "created_at": datetime.utcnow()
