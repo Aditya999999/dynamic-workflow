@@ -86,13 +86,16 @@ class AgentPayloadSchemaAdapter:
                 prop_type = properties.get("agent_id", {}).get("type", "string")
                 adapted["agent_id"] = 1 if prop_type == "integer" else (agent_id or "1")
 
-        if "job_id" in properties or "job_id" in required_fields:
-            if "job_id" not in adapted:
-                adapted["job_id"] = node_id or workflow_id
+        # In multi-agent DAG pipelines, workflow_job_id and job_id must reference the shared workflow_id
+        # (or resolved conversation_id) so downstream agents can locate artifacts created by upstream jobs in shared storage.
+        shared_workflow_job_id = workflow_id or resolved_conversation_id or node_id
+        if "job_id" in properties or "job_id" in required_fields or "job_id" in adapted:
+            if not adapted.get("job_id") or adapted.get("job_id") == node_id:
+                adapted["job_id"] = shared_workflow_job_id
 
-        if "workflow_job_id" in properties or "workflow_job_id" in required_fields:
-            if "workflow_job_id" not in adapted:
-                adapted["workflow_job_id"] = node_id or workflow_id
+        if "workflow_job_id" in properties or "workflow_job_id" in required_fields or "workflow_job_id" in adapted:
+            if not adapted.get("workflow_job_id") or adapted.get("workflow_job_id") == node_id:
+                adapted["workflow_job_id"] = shared_workflow_job_id
 
         # 4. Smart agent_feed construction from previous artifacts & dependencies
         if "agent_feed" in properties or "agent_feed" in required_fields:
@@ -144,6 +147,12 @@ class AgentPayloadSchemaAdapter:
         """Constructs a comprehensive feed list referencing all prior artifacts, artifact names, and upstream job IDs."""
         feed: set[str] = set(existing_feed or [])
 
+        # Include workflow ID and conversation ID
+        if context.get("workflow_id"):
+            feed.add(str(context["workflow_id"]))
+        if context.get("conversation_id"):
+            feed.add(str(context["conversation_id"]))
+
         # Include prior artifact IDs and artifact names
         artifacts = context.get("artifacts", [])
         for art in artifacts:
@@ -169,9 +178,9 @@ class AgentPayloadSchemaAdapter:
 
         # Default canonical feed tags based on agent role
         if agent_id == "architect":
-            feed.update(["brd", "BRD", "BRD_Document.md", "requirements", "business-analyst"])
+            feed.update(["brd", "BRD", "BRD_Document", "BRD_Document.md", "requirements", "business-analyst", "business_analyst", "create_brd"])
         elif agent_id == "developer":
-            feed.update(["architecture", "Architecture_Design.md", "brd", "BRD_Document.md", "design", "architect", "business-analyst"])
+            feed.update(["architecture", "Architecture_Design.md", "Architecture_Design", "brd", "BRD_Document.md", "design", "architect", "business-analyst"])
         elif agent_id == "product-owner":
             feed.update(["brd", "BRD_Document.md", "architecture", "Architecture_Design.md", "business-analyst"])
         elif agent_id == "qe":
