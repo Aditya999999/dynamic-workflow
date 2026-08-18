@@ -3,27 +3,45 @@ import { useNavigate } from "react-router-dom";
 import { QueryInput } from "../components/DynamicWorkflowOrchestrator/QueryInput/QueryInput";
 import orchestratorApi from "../services/orchestratorApi";
 import { routesPath } from "../routes/routesPath";
-import { History, ArrowRight, Bot, Cpu, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
+import { History, ArrowRight } from "lucide-react";
 
 export function DynamicWorkflowOrchestratorPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [recentWorkflows, setRecentWorkflows] = useState([]);
 
-  useEffect(() => {
+  const fetchWorkflows = () => {
     orchestratorApi
       .listWorkflows(10)
       .then((data) => setRecentWorkflows(data))
       .catch((err) => console.debug("Could not fetch recent workflows:", err));
+  };
+
+  useEffect(() => {
+    fetchWorkflows();
   }, []);
 
   const handlePlanWorkflow = async (query) => {
     try {
       setLoading(true);
+      setErrorMessage(null);
       const state = await orchestratorApi.planWorkflow({ query });
+
+      if (state.status === "failed" && (!state.nodes || state.nodes.length === 0)) {
+        setErrorMessage(
+          state.error_message ||
+          "Your request appears to be outside the scope of Software Development Life Cycle (SDLC) workflows. " +
+          "The Dynamic Workflow Orchestrator handles tasks such as Requirements Analysis (BRD), Architecture Design, " +
+          "Sprint Planning, Microservice Development, and QA/Test Strategy. Please provide a software engineering requirement."
+        );
+        return;
+      }
+
       navigate(routesPath.DYNAMIC_WORKFLOW_ORCHESTRATOR_DETAIL.replace(":workflowId", state.workflow_id));
     } catch (err) {
-      alert("Failed to plan workflow: " + (err.response?.data?.message || err.message));
+      const detailMsg = err.response?.data?.detail || err.response?.data?.message || err.message;
+      setErrorMessage(detailMsg);
     } finally {
       setLoading(false);
     }
@@ -31,7 +49,12 @@ export function DynamicWorkflowOrchestratorPage() {
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}>
-      <QueryInput onPlanWorkflow={handlePlanWorkflow} loading={loading} />
+      <QueryInput
+        onPlanWorkflow={handlePlanWorkflow}
+        loading={loading}
+        errorMessage={errorMessage}
+        onClearError={() => setErrorMessage(null)}
+      />
 
       {/* Recent Workflows */}
       {recentWorkflows.length > 0 && (

@@ -77,6 +77,10 @@ class WorkflowOrchestrator:
             initial_context=initial_context
         )
 
+        if state.status == "failed" and not state.nodes:
+            logger.warning(f"Workflow planning aborted for out-of-scope query: {query[:50]}")
+            return state
+
         await self.wf_repo.save_workflow(state)
 
         await self.emit_event(

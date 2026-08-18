@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Sparkles, Play, ArrowRight, Layers, Bot, ShieldCheck, Code, FileText, CheckCircle2 } from "lucide-react";
+import { Sparkles, ArrowRight, Layers, Bot, ShieldCheck, Code, AlertTriangle, X, Lightbulb } from "lucide-react";
 
 const PRESETS = [
   {
@@ -19,7 +19,14 @@ const PRESETS = [
   },
 ];
 
-export function QueryInput({ onPlanWorkflow, loading }) {
+const SUGGESTED_QUERIES = [
+  "Create a BRD and Architecture for an online payment gateway",
+  "Design microservices and generate C4 diagrams for e-commerce checkout",
+  "Implement FastAPI service endpoints for authentication and user management",
+  "Generate test strategy and pytest automation suite for order processing"
+];
+
+export function QueryInput({ onPlanWorkflow, loading, errorMessage, onClearError }) {
   const [query, setQuery] = useState("");
   const [selectedPreset, setSelectedPreset] = useState(null);
 
@@ -30,8 +37,22 @@ export function QueryInput({ onPlanWorkflow, loading }) {
   };
 
   const handleSelectPreset = (preset) => {
+    if (onClearError) onClearError();
     setSelectedPreset(preset.title);
     setQuery(preset.query);
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    if (onClearError) onClearError();
+    setSelectedPreset(null);
+    setQuery(suggestion);
+  };
+
+  const handleQueryChange = (e) => {
+    if (errorMessage && onClearError) {
+      onClearError();
+    }
+    setQuery(e.target.value);
   };
 
   return (
@@ -84,11 +105,105 @@ export function QueryInput({ onPlanWorkflow, loading }) {
         ))}
       </div>
 
+      {/* Custom Error / Out-of-Scope Banner */}
+      {errorMessage && (
+        <div
+          style={{
+            marginBottom: "20px",
+            padding: "16px 20px",
+            borderRadius: "12px",
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.4)",
+            boxShadow: "0 4px 20px rgba(239, 68, 68, 0.15)",
+            animation: "fadeIn 0.25s ease-out",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px" }}>
+            <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+              <div style={{
+                padding: "6px",
+                borderRadius: "8px",
+                background: "rgba(239, 68, 68, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0
+              }}>
+                <AlertTriangle size={20} color="#ef4444" />
+              </div>
+              <div>
+                <div style={{ fontWeight: "700", color: "#f87171", fontSize: "0.95rem", marginBottom: "4px" }}>
+                  SDLC Scope Notice
+                </div>
+                <div style={{ color: "var(--text-primary)", fontSize: "0.88rem", lineHeight: "1.5" }}>
+                  {errorMessage}
+                </div>
+                
+                {/* Suggestions */}
+                <div style={{ marginTop: "12px" }}>
+                  <div style={{ fontSize: "0.78rem", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "6px", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Lightbulb size={13} color="#f59e0b" /> Try asking for an SDLC requirement instead:
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {SUGGESTED_QUERIES.map((sq, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(sq)}
+                        style={{
+                          background: "rgba(255, 255, 255, 0.06)",
+                          border: "1px solid rgba(255, 255, 255, 0.12)",
+                          color: "var(--text-primary)",
+                          padding: "4px 10px",
+                          borderRadius: "16px",
+                          fontSize: "0.75rem",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "rgba(99, 102, 241, 0.2)";
+                          e.currentTarget.style.borderColor = "var(--primary)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
+                          e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.12)";
+                        }}
+                      >
+                        {sq}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {onClearError && (
+              <button
+                type="button"
+                onClick={onClearError}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-muted)",
+                  cursor: "pointer",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit}>
         <div style={{ position: "relative", marginBottom: "16px" }}>
           <textarea
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={handleQueryChange}
             placeholder="Describe the workflow you want the agents to execute..."
             rows={4}
             style={{
@@ -96,7 +211,7 @@ export function QueryInput({ onPlanWorkflow, loading }) {
               padding: "16px",
               borderRadius: "12px",
               background: "var(--bg-input)",
-              border: "1px solid var(--border-color)",
+              border: errorMessage ? "1px solid #ef4444" : "1px solid var(--border-color)",
               color: "var(--text-primary)",
               fontFamily: "var(--font-sans)",
               fontSize: "0.95rem",
@@ -104,8 +219,8 @@ export function QueryInput({ onPlanWorkflow, loading }) {
               outline: "none",
               transition: "border-color 0.2s",
             }}
-            onFocus={(e) => (e.target.style.borderColor = "var(--primary)")}
-            onBlur={(e) => (e.target.style.borderColor = "var(--border-color)")}
+            onFocus={(e) => (e.target.style.borderColor = errorMessage ? "#ef4444" : "var(--primary)")}
+            onBlur={(e) => (e.target.style.borderColor = errorMessage ? "#ef4444" : "var(--border-color)")}
           />
         </div>
 

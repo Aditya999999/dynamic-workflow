@@ -40,7 +40,7 @@ async def test_workflow_cancellation():
     orchestrator = get_workflow_orchestrator()
     wf_repo = get_workflow_repository()
 
-    query = "Workflow to be cancelled"
+    query = "Design payment gateway architecture and microservice implementation"
     state = await orchestrator.create_and_plan_workflow(query=query)
 
     cancelled_state = await orchestrator.cancel_workflow(state.workflow_id, reason="User cancelled via UI")
