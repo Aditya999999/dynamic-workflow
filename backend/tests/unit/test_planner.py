@@ -3,6 +3,7 @@ from domain.planner import (
     WorkflowPlanner,
     DeepAgentQuerySlicer,
     DeepAgentIntentClassifier,
+    DeepAgentScopeValidator,
     SDLCSequenceEngine,
     QuerySlice,
     ClassifiedTaskIntent,
@@ -30,10 +31,11 @@ def test_intent_classifier_against_agent_registry():
     slicer = DeepAgentQuerySlicer()
 
     query = "Create user stories for checkout flow and write test cases"
+    parsed_req = slicer.parse_user_request(query)
     slices = slicer.slice_query(query)
     agents = registry.list_agents()
 
-    intents = classifier.classify_intents(slices, agents, query)
+    intents = classifier.classify_intents(parsed_req, slices, agents, query)
     agent_ids = [intent.agent_id for intent in intents]
 
     assert "business-analyst" in agent_ids
@@ -91,7 +93,27 @@ def test_sdlc_sequence_engine_phase_ordering():
     assert edges[1].target == nodes[2].id
 
 
-def test_initial_plan_generation_end_to_end():
+def test_scenario_1_out_of_scope_rejection():
+    planner = WorkflowPlanner()
+    
+    # Non-SDLC queries: trivia, chit-chat, jokes
+    out_of_scope_queries = [
+        "What is the capital of France?",
+        "tell me a joke",
+        "hi",
+        "who is the president of USA"
+    ]
+    
+    for q in out_of_scope_queries:
+        state = planner.generate_initial_plan(query=q)
+        assert state.status == "failed"
+        assert len(state.nodes) == 0
+        assert len(state.edges) == 0
+        assert state.error_message is not None
+        assert "outside the scope of Software Development Life Cycle (SDLC) workflows" in state.error_message
+
+
+def test_scenario_2_legitimate_nlq_multi_agent():
     planner = WorkflowPlanner()
     state = planner.generate_initial_plan(
         query="Create a BRD for an online payment platform, design the architecture, prepare implementation tasks, and create a QA strategy."
@@ -110,3 +132,53 @@ def test_initial_plan_generation_end_to_end():
     # Verify first node is ready and others are planned
     assert state.nodes[0].status == "ready"
     assert all(n.status == "planned" for n in state.nodes[1:])
+
+
+def test_scenario_3_pasted_tsd_with_developer_action_only():
+    planner = WorkflowPlanner()
+    
+    tsd_content = """develop code for this TSD:
+# Technical Specification Document (TSD)
+## Module 1: Authentication Service
+Requirements:
+- User registration and login using JWT tokens
+- Password hashing with bcrypt
+- System Architecture design specification with C4 diagram
+- Quality assurance and test strategy guidelines
+- Sprint backlog story points and sprint planning acceptance criteria
+"""
+
+    state = planner.generate_initial_plan(query=tsd_content)
+
+    assert state.status == "planned"
+    # Even though the pasted TSD mentions "Architecture", "Quality assurance", "BRD", "Sprint backlog",
+    # ONLY the developer agent should be selected because the user's action command is "develop code for this TSD"
+    assert len(state.nodes) == 1
+    assert state.nodes[0].agent_id == "developer"
+    assert state.nodes[0].status == "ready"
+    
+    # Verify that the full TSD document payload was preserved in input_data for the developer
+    input_message = state.nodes[0].input_data.get("message") or state.nodes[0].input_data.get("prompt")
+    assert "Technical Specification Document" in input_message
+    assert "Authentication Service" in input_message
+
+
+def test_scenario_3_pasted_architecture_with_qe_test_action_only():
+    planner = WorkflowPlanner()
+    
+    query = """Please generate test strategy and test cases based on the below architecture document:
+# Microservice Architecture Document
+Component 1: Payment Gateway API
+Component 2: Kafka Event Stream
+Component 3: PostgreSQL Database
+"""
+
+    state = planner.generate_initial_plan(query=query)
+
+    assert state.status == "planned"
+    assert len(state.nodes) == 1
+    assert state.nodes[0].agent_id == "qe"
+    assert state.nodes[0].status == "ready"
+    
+    input_reqs = state.nodes[0].input_data.get("requirements") or state.nodes[0].input_data.get("prompt")
+    assert "Microservice Architecture Document" in input_reqs
