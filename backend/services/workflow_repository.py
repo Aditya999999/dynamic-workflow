@@ -72,7 +72,26 @@ class WorkflowRepository:
                 d = dict(doc)
                 d.pop("_id", None)
                 results.append(WorkflowState(**d))
-            return results
+    async def delete_workflow(self, workflow_id: str) -> bool:
+        if self.mongo.is_connected and self.mongo.db is not None:
+            res = await self.mongo.db.dwf_workflows.delete_one({"_id": workflow_id})
+            await self.mongo.db.workflow_jobs.delete_one({"_id": workflow_id})
+            # Also clean up events and artifacts associated with this workflow
+            await self.mongo.db.dwf_events.delete_many({"workflow_id": workflow_id})
+            await self.mongo.db.dwf_artifacts.delete_many({"workflow_id": workflow_id})
+            await self.mongo.db.workflow_artifacts.delete_many({
+                "$or": [
+                    {"workflow_id": workflow_id},
+                    {"job_id": workflow_id},
+                    {"workflow_job_id": workflow_id}
+                ]
+            })
+            return res.deleted_count > 0
+        else:
+            if workflow_id in self._memory_store:
+                del self._memory_store[workflow_id]
+                return True
+            return False
 
 
 _wf_repo_instance: WorkflowRepository | None = None

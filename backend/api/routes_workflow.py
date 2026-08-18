@@ -39,3 +39,21 @@ async def get_workflow_graph(
     if not state:
         raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found.")
     return WorkflowGraphBuilder.build_xyflow_graph(state)
+
+
+@router.delete("/{workflow_id}", status_code=status.HTTP_200_OK)
+async def delete_workflow(
+    workflow_id: str,
+    wf_repo: WorkflowRepository = Depends(get_workflow_repository),
+    current_user: dict = Depends(get_current_user)
+):
+    """Deletes a workflow and all its associated events and artifacts."""
+    deleted = await wf_repo.delete_workflow(workflow_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Workflow {workflow_id} not found.")
+    return {
+        "status": "deleted",
+        "workflow_id": workflow_id,
+        "message": "Workflow and associated resources successfully deleted."
+    }
+

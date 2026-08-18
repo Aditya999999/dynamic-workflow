@@ -31,6 +31,12 @@ export const orchestratorApi = {
     return response.data;
   },
 
+  // Delete workflow
+  deleteWorkflow: async (workflowId) => {
+    const response = await axiosClient.delete(`/${workflowId}`);
+    return response.data;
+  },
+
   // Resume HITL approval
   resumeWorkflow: async (workflowId, payload) => {
     const response = await axiosClient.post(`/${workflowId}/hitl/resume`, payload);
